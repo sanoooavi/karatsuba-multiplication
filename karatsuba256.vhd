@@ -1,0 +1,109 @@
+library ieee;
+use ieee.std_logic_1164.all;
+use ieee.std_logic_unsigned.all;
+entity Karatsuba256 IS 
+port(
+    clk:in std_logic;
+    start:in std_logic;
+    nrst:in std_logic;
+    multiplicand:IN std_logic_vector(255 downto 0);
+    multiplier:IN std_logic_vector(255 downto 0);
+    result:out std_logic_vector(511 downto 0);
+    done:out std_logic
+);
+end Karatsuba256;
+
+architecture behavorial of Karatsuba256 is
+    -- signal fHalf_multiplicand256:std_logic_vector(127 downto 0):=(others=>'0');
+    -- signal fHalf_multiplier256:std_logic_vector(127 downto 0):=(others=>'0');
+    -- signal sHalf_multiplicand256:std_logic_vector(127 downto 0):=(others=>'0');
+    -- signal sHalf_multiplier256:std_logic_vector(127 downto 0):=(others=>'0');
+     signal fsHalf_multiplicand256:std_logic_vector(127 downto 0):=(others=>'0');
+     signal fsHalf_multiplier256:std_logic_vector(127 downto 0):=(others=>'0');
+    signal ans1_256:std_logic_vector(255 downto 0):=(others=>'0');
+    signal ans2_256:std_logic_vector(255 downto 0):=(others=>'0');
+    signal ans3_256:std_logic_vector(255 downto 0):=(others=>'0');
+    signal done_ans1_256:std_logic:='0';
+    signal done_ans2_256:std_logic:='0';
+    signal done_ans3_256:std_logic:='0';
+    signal counter_finished256:std_logic:='0';
+--declaration
+component Karatsuba128 IS 
+port(
+    clk:in std_logic;
+    start:in std_logic;
+    nrst:in std_logic;
+    multiplicand:IN std_logic_vector(127 downto 0);
+    multiplier:IN std_logic_vector(127 downto 0);
+    result:out std_logic_vector(255 downto 0);
+    done:out std_logic
+);
+end component;
+
+begin
+    -- fHalf_multiplicand256<=multiplicand(255 downto 128);
+    -- fHalf_multiplier256<=multiplier(255 downto 128);
+    -- sHalf_multiplicand256<=multiplicand(127 downto 0);
+    -- sHalf_multiplier256<=multiplier(127 downto 0);
+     fsHalf_multiplicand256<= multiplicand(255 downto 128)+ multiplicand(127 downto 0);
+     fsHalf_multiplier256<= multiplier(255 downto 128)+ multiplier(127 downto 0);
+    kar128_1:Karatsuba128 port map(
+    clk,
+    start,
+    nrst,
+    multiplicand=>multiplicand(255 downto 128),
+    multiplier=>multiplier(255 downto 128),
+    result=> ans1_256,
+    done=>done_ans1_256);
+    kar128_2:Karatsuba128 port map(
+    clk,
+    start,
+    nrst,
+    multiplicand=>multiplicand(127 downto 0),
+    multiplier=>multiplier(127 downto 0),
+    result=>ans2_256,
+    done=>done_ans2_256
+    );
+    kar128_3:Karatsuba128 port map(
+    clk,
+    start,
+    nrst,
+    multiplicand=> fsHalf_multiplicand256,
+    multiplier=>fsHalf_multiplier256,
+    result=>ans3_256,
+    done=>done_ans3_256
+    );
+    process(clk)
+    variable z0_256: std_logic_vector(511 downto 0):=(others=>'0');
+    variable z2_256: std_logic_vector(511 downto 0):=(others=>'0');
+    variable z1_256: std_logic_vector(511 downto 0):=(others=>'0');
+    begin
+    if(rising_edge(clk))then
+          if(counter_finished256='1')then
+           result<=(others=>'0');
+           done<='0';
+           counter_finished256<='0';
+           z0_256:=(others=>'0');
+           z1_256:=(others=>'0');
+           z2_256:=(others=>'0');
+           counter_finished256<='0';
+     elsif(done_ans1_256='1' and done_ans2_256='1' and done_ans3_256='1')then
+        z2_256:=ans1_256&"0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000";
+     
+        z1_256:=
+        "00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"&
+        (ans3_256-ans1_256-ans2_256)&
+        "00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000";
+
+        z0_256:="0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"&ans2_256;
+        done<='1';
+        result<=z0_256+z1_256+z2_256;
+         counter_finished256<='1';
+
+     else
+           result<=(others=>'0');
+           done<='0';
+     end if;
+    end if;
+    end process;
+end behavorial;
